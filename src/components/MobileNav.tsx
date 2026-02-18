@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import Portal from "@/components/Portal";
 
 const items = [
   { href: "/services", label: "Layanan" },
@@ -41,7 +42,6 @@ function Item({
 }
 
 function MenuDots() {
-  // ikon kecil yang halus (bukan hamburger)
   return (
     <span className="inline-flex items-center gap-1">
       <span className="h-1.5 w-1.5 rounded-full bg-black/70" />
@@ -53,8 +53,9 @@ function MenuDots() {
 
 export default function MobileNav() {
   const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
-  // lock scroll saat drawer open
+  // lock scroll
   useEffect(() => {
     if (!open) return;
     const prev = document.body.style.overflow;
@@ -64,7 +65,7 @@ export default function MobileNav() {
     };
   }, [open]);
 
-  // esc to close
+  // esc
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -73,9 +74,15 @@ export default function MobileNav() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
+  // focus
+  useEffect(() => {
+    if (!open) return;
+    const t = setTimeout(() => panelRef.current?.focus(), 0);
+    return () => clearTimeout(t);
+  }, [open]);
+
   return (
     <>
-      {/* Trigger button (bukan hamburger) */}
       <button
         className={[
           "md:hidden inline-flex items-center gap-2",
@@ -90,98 +97,102 @@ export default function MobileNav() {
         <MenuDots />
       </button>
 
-      {/* Overlay + sheet */}
-      <div
-        className={[
-          "fixed inset-0 z-[9999] md:hidden",
-          open ? "pointer-events-auto" : "pointer-events-none",
-        ].join(" ")}
-        aria-hidden={!open}
-      >
-        {/* Backdrop */}
+      {/* PORTAL overlay: keluar dari stacking context layout */}
+      <Portal>
         <div
           className={[
-            "absolute inset-0",
-            "bg-black/55 backdrop-blur-sm transition-opacity duration-200",
-            open ? "opacity-100" : "opacity-0",
+            "fixed inset-0 z-[2147483647] md:hidden",
+            open ? "pointer-events-auto" : "pointer-events-none",
           ].join(" ")}
-          onClick={() => setOpen(false)}
-        />
-
-        {/* Sheet */}
-        <aside
-          className={[
-            "absolute right-0 top-0 h-full w-[88vw] max-w-sm",
-            "bg-nusantara-bone bg-batik-grid",
-            "border-l border-black/10 shadow-2xl",
-            "transition-transform duration-200 ease-out",
-            open ? "translate-x-0" : "translate-x-full",
-          ].join(" ")}
+          aria-hidden={!open}
         >
-          {/* Header */}
-          <div className="px-4 pt-4 pb-3 border-b border-black/10 bg-nusantara-bone/90 backdrop-blur">
-            <div className="flex items-center justify-between gap-3">
-              <div className="leading-tight">
-                <div className="text-xs opacity-70">Navigasi</div>
-                <div className="text-lg font-semibold tracking-tight">
-                  Menu
+          {/* Backdrop */}
+          <div
+            className={[
+              "absolute inset-0 bg-black/60 backdrop-blur-sm",
+              "transition-opacity duration-150",
+              open ? "opacity-100" : "opacity-0",
+            ].join(" ")}
+            onClick={() => setOpen(false)}
+          />
+
+          {/* Panel */}
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div
+              ref={panelRef}
+              tabIndex={-1}
+              onClick={(e) => e.stopPropagation()}
+              className={[
+                "w-full max-w-md rounded-2xl overflow-hidden",
+                "border border-black/10 shadow-2xl",
+                "bg-nusantara-bone bg-batik-grid",
+                "transition-opacity duration-150",
+                open ? "opacity-100" : "opacity-0",
+                "max-h-[85vh] flex flex-col",
+              ].join(" ")}
+              role="dialog"
+              aria-modal="true"
+            >
+              {/* Header */}
+              <div className="px-4 py-4 border-b border-black/10 bg-nusantara-bone/90 backdrop-blur flex items-start justify-between gap-3">
+                <div className="leading-tight">
+                  <div className="text-xs opacity-70">Navigasi</div>
+                  <div className="text-lg font-semibold tracking-tight">
+                    Menu
+                  </div>
+                  <div className="text-xs opacity-70">titiktemu production</div>
                 </div>
-                <div className="text-xs opacity-70">
-                  titiktemu production
-                </div>
+
+                <button
+                  className="rounded-xl2 border border-black/10 bg-white px-3 py-2 text-sm font-semibold hover:bg-black/5"
+                  onClick={() => setOpen(false)}
+                >
+                  Tutup
+                </button>
               </div>
 
-              <button
-                className="rounded-xl2 border border-black/10 bg-white px-3 py-2 text-sm font-semibold hover:bg-black/5"
-                aria-label="Close menu"
-                onClick={() => setOpen(false)}
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
+              {/* Body scroll */}
+              <div className="p-4 space-y-4 overflow-y-auto">
+                <div className="rounded-xl2 border border-black/10 bg-white/80 p-3">
+                  <div className="text-xs opacity-70">Pilih halaman</div>
+                  <div className="mt-2 space-y-2">
+                    {items.map((it) => (
+                      <Item
+                        key={it.href}
+                        href={it.href}
+                        label={it.label}
+                        onClick={() => setOpen(false)}
+                      />
+                    ))}
+                  </div>
+                </div>
 
-          {/* Content */}
-          <div className="p-4 space-y-4">
-            {/* Nav card */}
-            <div className="rounded-xl2 border border-black/10 bg-white/75 p-3">
-              <div className="text-xs opacity-70">Navigasi</div>
-              <div className="mt-2 space-y-2">
-                {items.map((it) => (
-                  <Item
-                    key={it.href}
-                    href={it.href}
-                    label={it.label}
+                {/* CTA */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <Link
+                    className="btn w-full justify-center"
+                    href="/services"
                     onClick={() => setOpen(false)}
-                  />
-                ))}
+                  >
+                    Lihat Layanan
+                  </Link>
+                  <Link
+                    className="btn-ghost w-full justify-center"
+                    href="/chat"
+                    onClick={() => setOpen(false)}
+                  >
+                    Tanya Admin
+                  </Link>
+                </div>
+
+                <div className="text-xs opacity-70 pb-1">
+                  Visual Nusantara • Creative Services
+                </div>
               </div>
             </div>
-
-            {/* CTA */}
-            <div className="grid grid-cols-1 gap-2">
-              <Link
-                className="btn w-full justify-center"
-                href="/services"
-                onClick={() => setOpen(false)}
-              >
-                Lihat Layanan
-              </Link>
-              <Link
-                className="btn-ghost w-full justify-center"
-                href="/chat"
-                onClick={() => setOpen(false)}
-              >
-                Tanya Admin
-              </Link>
-            </div>
-
-            <div className="text-xs opacity-70">
-              Visual Nusantara • Creative Services
-            </div>
           </div>
-        </aside>
-      </div>
+        </div>
+      </Portal>
     </>
   );
 }
