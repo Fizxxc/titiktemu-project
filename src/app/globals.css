@@ -1,26 +1,53 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  @apply bg-nusantara-bone text-nusantara-ink;
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl2 border border-black/10 bg-white/70 backdrop-blur p-4 shadow-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center rounded-xl2 px-4 py-2 border border-black/15 bg-black text-white hover:opacity-90;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-xl2 px-4 py-2 border border-black/15 bg-transparent hover:bg-black/5;
+  }
+
+  .input {
+    @apply w-full rounded-xl2 border border-black/15 bg-white px-3 py-2 outline-none focus:ring-2 focus:ring-nusantara-jade/30;
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full border border-black/10 px-3 py-1 text-xs bg-white/70;
+  }
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center rounded-xl2 px-4 py-2 text-sm sm:text-base border border-black/15 bg-black text-white hover:opacity-90;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-xl2 px-3 py-2 text-sm sm:text-base border border-black/15 bg-white/60 hover:bg-black/5;
+  }
+
+  .card {
+    @apply rounded-xl2 border border-black/10 bg-white/70 backdrop-blur p-4 sm:p-5 shadow-sm;
+  }
+}
+
+@layer components {
+  .badge {
+    @apply inline-flex items-center rounded-full px-3 py-1 text-xs border border-black/10 bg-white/70;
+  }
 }
