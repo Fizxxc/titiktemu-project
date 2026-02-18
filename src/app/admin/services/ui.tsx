@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 type Svc = {
@@ -41,6 +41,79 @@ function slugify(s: string) {
 function extFromFile(file: File) {
   const p = file.name.split(".").pop()?.toLowerCase();
   return p && ["png", "jpg", "jpeg", "webp"].includes(p) ? p : "jpg";
+}
+
+function safeImg(src: string | null | undefined) {
+  const s = (src || "").trim();
+  return s.length ? s : null;
+}
+
+function CoverPicker({
+  label,
+  previewUrl,
+  fileName,
+  onPick,
+  onRemove,
+}: {
+  label: string;
+  previewUrl: string | null;
+  fileName: string | null;
+  onPick: (f: File | null) => void;
+  onRemove: () => void;
+}) {
+  const ref = useRef<HTMLInputElement | null>(null);
+
+  return (
+    <div className="rounded-xl2 border border-black/10 bg-white/90 p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">{label}</div>
+          <div className="text-xs opacity-70 mt-1">
+            PNG/JPG/WEBP • disarankan landscape (16:10)
+          </div>
+        </div>
+
+        <input
+          ref={ref}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/jpg"
+          className="hidden"
+          onChange={(e) => onPick(e.target.files?.[0] || null)}
+        />
+
+        <div className="flex gap-2 shrink-0">
+          <button className="btn-ghost" type="button" onClick={() => ref.current?.click()}>
+            Pilih Cover
+          </button>
+          <button className="btn-ghost" type="button" onClick={onRemove} disabled={!previewUrl && !fileName}>
+            Hapus
+          </button>
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-3">
+        <div className="h-[72px] w-[110px] rounded-xl2 border border-black/10 bg-white overflow-hidden shrink-0">
+          {previewUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={previewUrl} alt="preview cover" className="h-full w-full object-cover" />
+          ) : (
+            <div className="h-full w-full grid place-items-center text-[11px] opacity-60 px-2 text-center">
+              Tidak ada cover
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <div className="text-sm font-semibold truncate">
+            {fileName ? fileName : previewUrl ? "Cover dipilih" : "Belum memilih cover"}
+          </div>
+          <div className="text-xs opacity-70">
+            {previewUrl ? "Siap diupload saat simpan." : "Klik “Pilih Cover” untuk memilih gambar."}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function AdminServicesClient({ initial }: { initial: Svc[] }) {
@@ -85,8 +158,10 @@ export default function AdminServicesClient({ initial }: { initial: Svc[] }) {
       cacheControl: "3600",
       contentType: file.type || "image/jpeg",
     });
+
     if (error) throw new Error(`Upload cover gagal: ${error.message}`);
 
+    // jika bucket PUBLIC:
     const { data } = supabase.storage.from(BUCKET).getPublicUrl(path);
     return data.publicUrl;
   }
@@ -230,42 +305,21 @@ export default function AdminServicesClient({ initial }: { initial: Svc[] }) {
         </div>
       )}
 
-      {/* ✅ MOBILE-FIRST: 1 kolom dulu, desktop 2 kolom */}
       <div className="grid grid-cols-1 lg:grid-cols-[420px_1fr] gap-4">
         {/* Create */}
-        <div className="card bg-nusantara-bone bg-batik-grid bg-batik-grid space-y-3">
+        <div className="card bg-nusantara-bone bg-batik-grid space-y-3">
           <div className="flex items-center justify-between">
             <div className="font-semibold">Tambah Service</div>
             <span className="badge">Nusantara</span>
           </div>
 
-          <div className="rounded-xl2 border border-black/10 bg-white/90 p-3">
-            <div className="text-sm font-semibold">Cover gambar</div>
-            <div className="text-xs opacity-70 mt-1">PNG/JPG/WEBP • disarankan landscape.</div>
-
-            <div className="mt-3 flex gap-3 items-center">
-              <div className="h-[72px] w-[96px] rounded-xl2 border border-black/10 bg-white overflow-hidden flex items-center justify-center shrink-0">
-                {coverPreview ? (
-                  <img src={coverPreview} alt="preview" className="h-full w-full object-cover" />
-                ) : (
-                  <div className="text-[11px] opacity-60 text-center px-2">Preview</div>
-                )}
-              </div>
-
-              <div className="min-w-0 flex-1 space-y-2">
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={(e) => pickCreateCover(e.target.files?.[0] || null)}
-                />
-                {coverFile && (
-                  <button className="btn-ghost" type="button" onClick={() => pickCreateCover(null)}>
-                    Hapus gambar
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
+          <CoverPicker
+            label="Cover gambar"
+            previewUrl={coverPreview}
+            fileName={coverFile?.name || null}
+            onPick={pickCreateCover}
+            onRemove={() => pickCreateCover(null)}
+          />
 
           <div className="space-y-2">
             <div className="text-sm font-semibold">Judul</div>
@@ -337,60 +391,62 @@ export default function AdminServicesClient({ initial }: { initial: Svc[] }) {
             <div className="text-xs opacity-70">{list.length} item</div>
           </div>
 
-          {/* ✅ MOBILE: list jadi 1 kolom; desktop grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-            {list.map((s) => (
-              <div key={s.id} className="rounded-xl2 border border-black/10 bg-white overflow-hidden">
-                <div className="h-32 border-b border-black/10 bg-white overflow-hidden">
-                  {s.cover_url ? (
-                    <img src={s.cover_url} alt={s.title} className="h-full w-full object-cover" />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-xs opacity-60">
-                      Tidak ada cover
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-3 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="font-semibold leading-tight truncate">{s.title}</div>
-                      <div className="text-xs opacity-70 truncate">{s.slug}</div>
-                    </div>
-                    <span className="badge">{s.is_active ? "Aktif" : "Nonaktif"}</span>
+            {list.map((s) => {
+              const cover = safeImg(s.cover_url);
+              return (
+                <div key={s.id} className="rounded-xl2 border border-black/10 bg-white overflow-hidden">
+                  <div className="h-32 border-b border-black/10 bg-white overflow-hidden">
+                    {cover ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={cover} alt={s.title} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center text-xs opacity-60">
+                        Tidak ada cover
+                      </div>
+                    )}
                   </div>
 
-                  <div className="text-sm font-semibold">{rupiah(s.price)}</div>
+                  <div className="p-3 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-semibold leading-tight truncate">{s.title}</div>
+                        <div className="text-xs opacity-70 truncate">{s.slug}</div>
+                      </div>
+                      <span className="badge">{s.is_active ? "Aktif" : "Nonaktif"}</span>
+                    </div>
 
-                  {s.description && (
-                    <div className="text-xs opacity-70 line-clamp-3">{s.description}</div>
-                  )}
+                    <div className="text-sm font-semibold">{rupiah(s.price)}</div>
 
-                  {/* ✅ MOBILE: tombol jadi 2 baris rapi */}
-                  <div className="grid grid-cols-2 gap-2 pt-2">
-                    <button className="btn-ghost w-full" onClick={() => startEdit(s)}>
-                      Edit
-                    </button>
-                    <button className="btn-ghost w-full" onClick={() => toggle(s.id, !s.is_active)}>
-                      {s.is_active ? "Nonaktif" : "Aktifkan"}
-                    </button>
-                    <button className="btn-ghost w-full col-span-2" onClick={() => del(s.id)}>
-                      Hapus
-                    </button>
+                    {s.description && (
+                      <div className="text-xs opacity-70 line-clamp-3">{s.description}</div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2 pt-2">
+                      <button className="btn-ghost w-full" onClick={() => startEdit(s)}>
+                        Edit
+                      </button>
+                      <button className="btn-ghost w-full" onClick={() => toggle(s.id, !s.is_active)}>
+                        {s.is_active ? "Nonaktif" : "Aktifkan"}
+                      </button>
+                      <button className="btn-ghost w-full col-span-2" onClick={() => del(s.id)}>
+                        Hapus
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
 
             {!list.length && <div className="text-sm opacity-70">Belum ada service.</div>}
           </div>
         </div>
       </div>
 
-      {/* ✅ EDIT: Mobile jadi full-screen bottom sheet */}
+      {/* Edit Modal */}
       {editing && editForm && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center">
-          <div className="w-full sm:max-w-2xl bg-white rounded-t-2xl sm:rounded-2xl border border-black/10 overflow-hidden max-h-[92vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm flex items-end sm:items-center justify-center p-3">
+          <div className="w-full sm:max-w-2xl bg-white rounded-2xl border border-black/10 overflow-hidden max-h-[92vh] flex flex-col">
             <div className="p-4 border-b border-black/10 flex items-center justify-between">
               <div>
                 <div className="font-semibold">Edit Service</div>
@@ -401,47 +457,14 @@ export default function AdminServicesClient({ initial }: { initial: Svc[] }) {
               </button>
             </div>
 
-            <div className="p-4 space-y-3">
-              <div className="rounded-xl2 border border-black/10 bg-white p-3">
-                <div className="text-sm font-semibold">Cover</div>
-                <div className="text-xs opacity-70 mt-1">Upload untuk mengganti cover.</div>
-
-                <div className="mt-3 flex gap-3 items-center">
-                  <div className="h-[72px] w-[96px] rounded-xl2 border border-black/10 overflow-hidden bg-white shrink-0">
-                    {(editCoverPreview || editing.cover_url) ? (
-                      <img
-                        src={editCoverPreview || editing.cover_url!}
-                        alt="cover"
-                        className="h-full w-full object-cover"
-                        onError={(e) => {
-                          (e.currentTarget as HTMLImageElement).src =
-                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='200'%3E%3Crect width='100%25' height='100%25' fill='%23f2f2f2'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23666' font-size='14'%3ECover%3C/text%3E%3C/svg%3E";
-                        }}
-                      />
-                    ) : (
-                      <div className="h-full w-full flex items-center justify-center text-[11px] opacity-60">
-                        Belum ada cover
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="min-w-0 flex-1 space-y-2">
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg,image/webp"
-                      onChange={(e) => pickEditCover(e.target.files?.[0] || null)}
-                    />
-                    {editCoverFile && (
-                      <button className="btn-ghost" type="button" onClick={() => pickEditCover(null)}>
-                        Batal ganti gambar
-                      </button>
-                    )}
-                    <div className="text-xs opacity-70">
-                      Bucket: <b>{BUCKET}</b>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="p-4 space-y-3 overflow-y-auto">
+              <CoverPicker
+                label="Cover service"
+                previewUrl={editCoverPreview || safeImg(editing.cover_url)}
+                fileName={editCoverFile?.name || null}
+                onPick={pickEditCover}
+                onRemove={() => pickEditCover(null)}
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-2">
@@ -503,6 +526,10 @@ export default function AdminServicesClient({ initial }: { initial: Svc[] }) {
                 <button className="btn-ghost w-full" onClick={closeEdit}>
                   Batal
                 </button>
+              </div>
+
+              <div className="text-xs opacity-70">
+                Bucket: <b>{BUCKET}</b>
               </div>
             </div>
           </div>
