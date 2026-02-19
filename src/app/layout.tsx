@@ -36,11 +36,69 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
 
-        <footer className="border-t border-black/10 bg-nusantara-bone/70">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 text-sm opacity-80">
-            © {new Date().getFullYear()} titiktemu production — Visual Nusantara.
+        <footer className="border-t border-black/10 bg-nusantara-bone/80">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6 py-8">
+
+            {/* Top section */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+
+              {/* Brand info */}
+              <div className="space-y-2">
+                <div className="font-semibold tracking-wide">
+                  titiktemu production
+                </div>
+                <div className="text-sm opacity-70">
+                  Visual Nusantara • Creative Services
+                </div>
+              </div>
+
+              {/* Legal links */}
+              <div className="flex items-center gap-6 text-sm">
+                <Link
+                  href="/privacy"
+                  className="
+            relative
+            opacity-70 hover:opacity-100
+            transition
+            after:absolute after:left-0 after:-bottom-1
+            after:h-[1px] after:w-0
+            after:bg-nusantara-ink
+            after:transition-all after:duration-300
+            hover:after:w-full
+          "
+                >
+                  Privacy Policy
+                </Link>
+
+                <Link
+                  href="/terms"
+                  className="
+            relative
+            opacity-70 hover:opacity-100
+            transition
+            after:absolute after:left-0 after:-bottom-1
+            after:h-[1px] after:w-0
+            after:bg-nusantara-ink
+            after:transition-all after:duration-300
+            hover:after:w-full
+          "
+                >
+                  Terms of Service
+                </Link>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div className="my-6 h-px bg-black/10" />
+
+            {/* Bottom copyright */}
+            <div className="text-xs opacity-60 text-center md:text-left">
+              © {new Date().getFullYear()} titiktemu production — Hak Cipta Dilindungi.
+            </div>
+
           </div>
         </footer>
+
       </body>
     </html>
   );
