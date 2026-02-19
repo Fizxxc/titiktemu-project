@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabaseBrowser } from "@/lib/supabase/client";
 
 type OrderRow = {
   id: string;
@@ -37,6 +38,19 @@ const STATUS = [
   "rejected",
 ] as const;
 
+async function fetchOrders() {
+  const supabase = supabaseBrowser();
+  const { data, error } = await supabase
+    .from("orders")
+    .select(
+      "id,invoice_number,total,status,created_at,payment_proof_path,coupon_code,discount,subtotal,user_id"
+    )
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data || []) as OrderRow[];
+}
+
 export default function AdminOrdersClient({
   initial,
   serverError,
@@ -44,26 +58,93 @@ export default function AdminOrdersClient({
   initial: OrderRow[];
   serverError?: string | null;
 }) {
+  const supabase = useMemo(() => supabaseBrowser(), []);
+
+  const [list, setList] = useState<OrderRow[]>(initial);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<(typeof STATUS)[number]>("all");
 
+  const [liveMsg, setLiveMsg] = useState<string | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
+
+  // ✅ initial -> list (kalau initial berubah dari server component)
+  useEffect(() => {
+    setList(initial);
+  }, [initial]);
+
+  // ✅ REALTIME subscription (tanpa refresh manual)
+  useEffect(() => {
+    let alive = true;
+
+    async function syncNow(reason: string) {
+      try {
+        setLiveBusy(true);
+        const rows = await fetchOrders();
+        if (!alive) return;
+        setList(rows);
+        setLiveMsg(reason);
+        window.clearTimeout((syncNow as any)._t);
+        (syncNow as any)._t = window.setTimeout(() => setLiveMsg(null), 1800);
+      } catch (e: any) {
+        if (!alive) return;
+        setLiveMsg(`Realtime sync error: ${e.message}`);
+        window.clearTimeout((syncNow as any)._t);
+        (syncNow as any)._t = window.setTimeout(() => setLiveMsg(null), 2500);
+      } finally {
+        if (alive) setLiveBusy(false);
+      }
+    }
+
+    // Subscribe ke perubahan di table orders
+    const ch = supabase
+      .channel("admin-orders-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        (payload) => {
+          // payload.eventType: INSERT | UPDATE | DELETE
+          const eventType = (payload as any).eventType || "CHANGE";
+          const reason =
+            eventType === "INSERT"
+              ? "Order baru masuk ✅"
+              : eventType === "UPDATE"
+              ? "Order terupdate ✅"
+              : eventType === "DELETE"
+              ? "Order terhapus ✅"
+              : "Order berubah ✅";
+
+          // opsi A (paling aman): re-fetch list agar konsisten
+          syncNow(reason);
+        }
+      )
+      .subscribe((status) => {
+        // subscribed / timed_out / closed / channel_error
+        if (status === "SUBSCRIBED") {
+          syncNow("Realtime aktif ✅");
+        }
+      });
+
+    return () => {
+      alive = false;
+      supabase.removeChannel(ch);
+    };
+  }, [supabase]);
+
   const filtered = useMemo(() => {
     const query = q.trim().toLowerCase();
-
-    return initial.filter((o) => {
+    return list.filter((o) => {
       const matchStatus = status === "all" ? true : o.status === status;
       const matchQuery =
         !query ||
         (o.invoice_number || "").toLowerCase().includes(query) ||
         (o.user_id || "").toLowerCase().includes(query);
-
       return matchStatus && matchQuery;
     });
-  }, [initial, q, status]);
+  }, [list, q, status]);
 
   const countPaidReview = useMemo(
-    () => initial.filter((o) => o.status === "paid_review").length,
-    [initial]
+    () => list.filter((o) => o.status === "paid_review").length,
+    [list]
   );
 
   return (
@@ -72,8 +153,21 @@ export default function AdminOrdersClient({
         <div>
           <h1 className="text-2xl sm:text-3xl font-semibold">Admin • Orders</h1>
           <p className="text-sm opacity-70 mt-1">
-            Total {initial.length} order • <span className="font-semibold">{countPaidReview}</span> menunggu verifikasi (paid_review)
+            Total {list.length} order •{" "}
+            <span className="font-semibold">{countPaidReview}</span> menunggu
+            verifikasi (paid_review)
           </p>
+
+          {/* ✅ Live banner */}
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <span className={liveBusy ? "opacity-60" : "opacity-80"}>
+              {liveBusy ? "Sync..." : "Live"}
+            </span>
+            <span className="opacity-40">•</span>
+            <span className="opacity-70">
+              {liveMsg || "Menunggu perubahan dari database…"}
+            </span>
+          </div>
         </div>
 
         <Link href="/admin" className="btn-ghost hidden sm:inline-flex">
@@ -133,8 +227,12 @@ export default function AdminOrdersClient({
                 <div className="truncate">User: {o.user_id}</div>
                 {o.coupon_code ? (
                   <div>
-                    Kupon: <span className="font-semibold">{o.coupon_code}</span> • Diskon:{" "}
-                    <span className="font-semibold">{rupiah(o.discount || 0)}</span>
+                    Kupon:{" "}
+                    <span className="font-semibold">{o.coupon_code}</span> •
+                    Diskon:{" "}
+                    <span className="font-semibold">
+                      {rupiah(o.discount || 0)}
+                    </span>
                   </div>
                 ) : (
                   <div>Tanpa kupon</div>
@@ -172,7 +270,6 @@ export default function AdminOrdersClient({
                   Struk 58mm
                 </a>
               </div>
-
             </div>
           </div>
         ))}
